@@ -545,7 +545,15 @@ def load_instructions(
                 encoding = {"match": match_string, "variables": []}
                 # Also store the resolved variables for field extraction
                 if "variables" in resolved_format:
-                    encoding["variables"] = resolved_format.get("variables", {})
+                    # Normalize variables to a list of dicts with 'name' and 'location' keys,
+                    # similar to the handling in the c_header generator.
+                    vars_ = resolved_format.get("variables", [])
+                    if isinstance(vars_, dict):
+                        vars_ = [
+                            {"name": var_name, "location": var_loc}
+                            for var_name, var_loc in vars_.items()
+                        ]
+                    encoding["variables"] = vars_
                 logging.debug(f"Built encoding from format field for {name}")
 
             # Check if the instruction specifies a base architecture constraint
