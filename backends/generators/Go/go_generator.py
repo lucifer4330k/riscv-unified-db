@@ -46,7 +46,7 @@ func encode(a obj.As) *inst {
         rs2 = (enc_match >> 20) & ((1 << 5) - 1)
         csr_val = (enc_match >> 20) & ((1 << 12) - 1)
         funct7 = (enc_match >> 25) & ((1 << 7) - 1)
-        # Create the instruction case name. For example, "bclri" becomes "ABCLRI"
+        # Create the instruction case name (e.g., "bclri" becomes "ABCLRI")
         instr_case = f"A{name.upper().replace('.', '')}"
         instr_parts.append(f"""  case {instr_case}:
     return &inst{{ {hex(opcode)}, {hex(funct3)}, {hex(rs1)}, {hex(rs2)}, {signed(csr_val, 12)}, {hex(funct7)} }}
