@@ -41,6 +41,11 @@ def parse_args():
         action="store_true",
         help="Include all instructions and CSRs regardless of extensions",
     )
+    parser.add_argument(
+        "--include-mock",
+        action="store_true",
+        help="Include mock instructions and CSRs from the Xmock extension",
+    )
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug logging")
     parser.add_argument(
         "--extensions",
@@ -169,11 +174,15 @@ def main():
     logging.info(f"Target architecture: {args.arch}")
 
     # Load instructions
-    instructions = load_instructions(args.inst_dir, enabled_extensions, args.include_all, args.arch)
+    instructions = load_instructions(
+        args.inst_dir, enabled_extensions, args.include_all, args.arch, args.include_mock
+    )
     logging.info(f"Loaded {len(instructions)} instructions")
 
     # Load CSRs
-    csrs = load_csrs(args.csr_dir, enabled_extensions, args.include_all, args.arch)
+    csrs = load_csrs(
+        args.csr_dir, enabled_extensions, args.include_all, args.arch, args.include_mock
+    )
     logging.info(f"Loaded {len(csrs)} CSRs")
 
     # Load exception codes
@@ -182,6 +191,7 @@ def main():
         args.extensions,
         include_all=args.include_all,
         resolved_codes_file=args.resolved_codes,
+        include_mock=args.include_mock,
     )
     logging.info(f"Loaded {len(causes)} exception codes")
 

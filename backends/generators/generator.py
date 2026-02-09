@@ -9,6 +9,36 @@ import yaml
 pp = pprint.PrettyPrinter(indent=2)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:: %(message)s")
 
+MOCK_EXTENSION_NAME = "Xmock"
+
+
+def extension_spec_mentions(extensions_spec, target):
+    if not extensions_spec:
+        return False
+    if isinstance(extensions_spec, str):
+        if extensions_spec == target:
+            return True
+        if extensions_spec.startswith("RV"):
+            if extensions_spec.startswith("RV32") or extensions_spec.startswith("RV64"):
+                ext_parts = extensions_spec[4:]
+            else:
+                ext_parts = extensions_spec[2:]
+            return target in ext_parts
+        return False
+    if isinstance(extensions_spec, dict):
+        if extensions_spec.get("name") == target:
+            return True
+        for key in ("allOf", "anyOf", "oneOf"):
+            if key in extensions_spec:
+                entries = extensions_spec[key]
+                if isinstance(entries, (str, dict)):
+                    entries = [entries]
+                return any(extension_spec_mentions(entry, target) for entry in entries)
+        return False
+    if isinstance(extensions_spec, list):
+        return any(extension_spec_mentions(entry, target) for entry in extensions_spec)
+    return False
+
 
 def check_requirement(req, exts):
     if isinstance(req, str):
@@ -189,7 +219,13 @@ def parse_extension_requirements(extensions_spec):
     return lambda exts: True
 
 
-def load_instructions(root_dir, enabled_extensions, include_all=False, target_arch="RV64"):
+def load_instructions(
+    root_dir,
+    enabled_extensions,
+    include_all=False,
+    target_arch="RV64",
+    include_mock=False,
+):
     """
     Recursively walk through root_dir, load YAML files that define an instruction,
     filter by enabled extensions, and collect them into a dictionary keyed by the instruction name.
@@ -229,10 +265,16 @@ def load_instructions(root_dir, enabled_extensions, include_all=False, target_ar
                 logging.error(f"Missing 'name' field in {path}")
                 continue
 
+            definedBy = data.get("definedBy")
+            if not include_mock and extension_spec_mentions(definedBy, MOCK_EXTENSION_NAME):
+                msg = f"Skipping {name} because it belongs to mock extension {MOCK_EXTENSION_NAME}"
+                logging.debug(msg)
+                extension_filtered += 1
+                continue
+
             # If include_all is True, skip extension filtering
             if not include_all:
                 # Check if this instruction is defined by an enabled extension
-                definedBy = data.get("definedBy")
                 if definedBy is None:
                     logging.error(f"Missing 'definedBy' field in instruction {name} in {path}")
                     extension_filtered += 1
@@ -371,7 +413,13 @@ def load_instructions(root_dir, enabled_extensions, include_all=False, target_ar
     return instr_dict
 
 
-def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64"):
+def load_csrs(
+    csr_root,
+    enabled_extensions,
+    include_all=False,
+    target_arch="RV64",
+    include_mock=False,
+):
     """
     Recursively walk through csr_root, load YAML files that define a CSR,
     filter by enabled extensions, and collect them into a dictionary mapping
@@ -433,11 +481,16 @@ def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64
                     arch_filtered += 1
                     continue
 
+            definedBy = data.get("definedBy")
+            if not include_mock and extension_spec_mentions(definedBy, MOCK_EXTENSION_NAME):
+                msg = f"Skipping CSR {name} because it belongs to mock extension {MOCK_EXTENSION_NAME}"
+                logging.debug(msg)
+                extension_filtered += 1
+                continue
+
             # If include_all is True, skip extension filtering
             if not include_all:
                 # Check if this CSR is defined by an enabled extension
-                definedBy = data.get("definedBy")
-
                 # If definedBy is missing, log a warning but don't skip
                 # This is different from instructions where we're more strict
                 if definedBy is None:
@@ -484,7 +537,7 @@ def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64
 
 
 def load_exception_codes(
-    ext_dir, enabled_extensions=None, include_all=False, resolved_codes_file=None
+    ext_dir, enabled_extensions=None, include_all=False, resolved_codes_file=None, include_mock=False
 ):
     """Load exception codes from extension YAML files or pre-resolved JSON file."""
     exception_codes = []
