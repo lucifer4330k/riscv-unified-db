@@ -35,6 +35,7 @@ func encode(a obj.As) *inst {
 	switch a {
 """
 
+    # Use list append and join for better performance than string concatenation in a loop
     instr_parts = []
     # Process instructions in sorted order (by name)
     for name, info in sorted(instr_dict.items(), key=lambda x: x[0].upper()):
