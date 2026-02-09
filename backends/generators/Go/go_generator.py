@@ -104,7 +104,7 @@ def parse_args():
         "--include-all",
         "-a",
         action="store_true",
-        help="Include all instructions, ignoring extension filtering",
+        help="Include all non-mock instructions, ignoring extension filtering (mock content still requires --include-mock)",
     )
     parser.add_argument(
         "--include-mock",
