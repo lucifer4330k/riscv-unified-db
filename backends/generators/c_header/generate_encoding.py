@@ -196,7 +196,10 @@ def main():
         "--include-all",
         "-a",
         action="store_true",
-        help="Include all instructions, ignoring extension filtering",
+        help=(
+            "Include all instructions, ignoring extension filtering "
+            "(Xmock mock instructions and CSRs still require --include-mock)"
+        ),
     )
     parser.add_argument(
         "--include-mock",
