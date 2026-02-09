@@ -39,7 +39,10 @@ def parse_args():
     parser.add_argument(
         "--include-all",
         action="store_true",
-        help="Include all instructions and CSRs regardless of extensions",
+        help=(
+            "Include all non-mock instructions and CSRs regardless of extensions "
+            "(mock instructions/CSRs still require --include-mock)"
+        ),
     )
     parser.add_argument(
         "--include-mock",
