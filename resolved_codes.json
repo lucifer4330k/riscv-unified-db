@@ -1,0 +1,16 @@
+[
+  {"num": 0, "name": "Instruction address misaligned"},
+  {"num": 1, "name": "Instruction access fault"},
+  {"num": 2, "name": "Illegal instruction"},
+  {"num": 3, "name": "Breakpoint"},
+  {"num": 4, "name": "Load address misaligned"},
+  {"num": 5, "name": "Load access fault"},
+  {"num": 6, "name": "Store/AMO address misaligned"},
+  {"num": 7, "name": "Store/AMO access fault"},
+  {"num": 8, "name": "Environment call from U-mode"},
+  {"num": 9, "name": "Environment call from S-mode"},
+  {"num": 11, "name": "Environment call from M-mode"},
+  {"num": 12, "name": "Instruction page fault"},
+  {"num": 13, "name": "Load page fault"},
+  {"num": 15, "name": "Store/AMO page fault"}
+]
