@@ -6893,8 +6893,8 @@ module Idl
             type_error "Bits width (#{bits_expression.value(symtab)}) must be positive"
           end
         end
-        unless bits_expression.type(symtab).const?
-          type_error "Bits width (#{bits_expression.text_value}) must be const"
+        unless bits_expression.type(symtab).integral?
+          type_error "Bits width (#{bits_expression.text_value}) must be integral"
         end
       end
       unless ["Bits", "String", "XReg", "Boolean", "U32", "U64"].include?(@type_name)

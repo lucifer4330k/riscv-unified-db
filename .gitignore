@@ -35,3 +35,4 @@ coverage
 
 # emacs backup files
 *~
+tools/ruby-gems/idlc/vendor/
