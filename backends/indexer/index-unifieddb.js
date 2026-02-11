@@ -11,18 +11,20 @@ const rec = async (branch, root) => {
   const node = {};
   const localPath = path.resolve(root, ...branch);
   const els = await readdir(localPath);
-  for (const el of els) {
-    const isFile = (await stat(path.resolve(localPath, el))).isFile();
-    const fileExt = path.extname(el);
-    const baseName = path.basename(el, fileExt);
-    if (isFile) {
-      if ([".yaml", ".json"].includes(fileExt)) {
-        node[baseName] = { $ref: path.join(...branch, el) };
+  await Promise.all(
+    els.map(async (el) => {
+      const isFile = (await stat(path.resolve(localPath, el))).isFile();
+      const fileExt = path.extname(el);
+      const baseName = path.basename(el, fileExt);
+      if (isFile) {
+        if ([".yaml", ".json"].includes(fileExt)) {
+          node[baseName] = { $ref: path.join(...branch, el) };
+        }
+      } else {
+        node[el] = await rec([...branch, el], root);
       }
-    } else {
-      node[el] = await rec([...branch, el], root);
-    }
-  }
+    }),
+  );
   return node;
 };
 
