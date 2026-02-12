@@ -36,6 +36,9 @@ definedBy:
     - xlen: 32
     - extension:
         name: Zihpm
+    - param:
+        name: NUM_HPM_COUNTERS
+        greaterThanOrEqual: 25
 fields:
   COUNT:
     location: 31-0

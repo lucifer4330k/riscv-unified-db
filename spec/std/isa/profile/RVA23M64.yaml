@@ -22,3 +22,14 @@ extensions:
   $inherits:
     - "profile/RVB23M64.yaml#/extensions"
     - "profile/RVA23S64.yaml#/extensions"
+
+param_constraints:
+  NUM_PMP_ENTRIES:
+    schema:
+      minimum: 4
+  PMP_GRANULARITY:
+    schema:
+      maximum: 12
+  NUM_HPM_COUNTERS:
+    schema:
+      minimum: 0
