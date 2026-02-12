@@ -319,21 +319,30 @@ class NonIsaSpecification
   # Render an array of prose statements as AsciiDoc, filtering by normative and conditional status.
   def render_structured_prose(prose_content, normative: true, non_normative: true, when_callback: nil)
     return nil if prose_content.nil?
+
+    # Handle simple string (Asciidoc source)
+    return prose_content if prose_content.is_a?(String)
+
     return "" unless prose_content.is_a?(Array)
 
     rendered_statements = []
     prose_content.each do |statement|
-      next unless statement.is_a?(Hash) && statement['id'] && statement['text']
+      text = nil
+      condition = nil
 
-      # Filter by normative status
-      stmt_normative = statement['normative']
-      next if stmt_normative == true && !normative
-      next if stmt_normative == false && !non_normative
+      if statement.is_a?(String)
+        text = statement
+      elsif statement.is_a?(Hash)
+        text = statement['text']
+        condition = statement['when()']
+      end
+
+      next unless text
 
       # Filter by when condition
-      next if when_callback && !when_callback.call(statement['when()'], statement)
+      next if when_callback && !when_callback.call(condition, statement)
 
-      rendered_statements << statement['text']
+      rendered_statements << text
     end
     rendered_statements.join("\n\n")
   end
