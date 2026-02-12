@@ -54,6 +54,7 @@ namespace :gen do
   task go: "#{$root}/gen/go" do
     config_name = ENV["CONFIG"] || "_"
     output_dir = ENV["OUTPUT_DIR"] || "#{$root}/gen/go/"
+    include_mock_flag = ENV["INCLUDE_MOCK"] == "1" ? " --include-mock" : ""
 
     # Ensure the output directory exists
     FileUtils.mkdir_p output_dir
@@ -66,7 +67,7 @@ namespace :gen do
 
     # Run the Go generator script
     # Note: The script uses --output not --output-dir
-    sh "/opt/venv/bin/python3 #{$root}/backends/generators/Go/go_generator.py --inst-dir=#{inst_dir} --csr-dir=#{csr_dir} --output=#{output_dir}inst.go"
+    sh "/opt/venv/bin/python3 #{$root}/backends/generators/Go/go_generator.py --inst-dir=#{inst_dir} --csr-dir=#{csr_dir} --output=#{output_dir}inst.go#{include_mock_flag}"
   end
 
   desc <<~DESC
@@ -80,6 +81,7 @@ namespace :gen do
   task c_header: "#{$root}/gen/c_header" do
     config_name = ENV["CONFIG"] || "_"
     output_dir = ENV["OUTPUT_DIR"] || "#{$root}/gen/c_header/"
+    include_mock_flag = ENV["INCLUDE_MOCK"] == "1" ? " --include-mock" : ""
 
     # Ensure the output directory exists
     FileUtils.mkdir_p output_dir
@@ -95,7 +97,7 @@ namespace :gen do
       sh "/opt/venv/bin/python3 #{$root}/backends/generators/c_header/generate_encoding.py " \
          "--inst-dir=#{inst_dir} --csr-dir=#{csr_dir} --ext-dir=#{ext_dir} " \
          "--resolved-codes=#{resolved_codes} " \
-         "--output=#{output_dir}encoding.out.h --include-all"
+         "--output=#{output_dir}encoding.out.h --include-all#{include_mock_flag}"
     end
   end
 
@@ -109,6 +111,7 @@ namespace :gen do
   task sverilog: "#{$root}/gen/sverilog" do
     config_name = ENV["CONFIG"] || "_"
     output_dir = ENV["OUTPUT_DIR"] || "#{$root}/gen/sverilog/"
+    include_mock_flag = ENV["INCLUDE_MOCK"] == "1" ? " --include-mock" : ""
 
     # Ensure the output directory exists
     FileUtils.mkdir_p output_dir
@@ -124,7 +127,7 @@ namespace :gen do
       sh "/opt/venv/bin/python3 #{$root}/backends/generators/sverilog/sverilog_generator.py " \
          "--inst-dir=#{inst_dir} --csr-dir=#{csr_dir} --ext-dir=#{ext_dir} " \
          "--resolved-codes=#{resolved_codes} " \
-         "--output=#{output_dir}riscv_decode_package.svh --include-all"
+         "--output=#{output_dir}riscv_decode_package.svh --include-all#{include_mock_flag}"
     end
   end
 end

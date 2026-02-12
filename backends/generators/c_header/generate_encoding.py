@@ -196,7 +196,15 @@ def main():
         "--include-all",
         "-a",
         action="store_true",
-        help="Include all instructions, ignoring extension filtering",
+        help=(
+            "Include all instructions, ignoring extension filtering "
+            "(Xmock mock instructions and CSRs still require --include-mock)"
+        ),
+    )
+    parser.add_argument(
+        "--include-mock",
+        action="store_true",
+        help="Include mock instructions and CSRs from the Xmock extension",
     )
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug logging")
     parser.add_argument(
@@ -228,12 +236,20 @@ def main():
     # Load instructions and CSRs
     logging.info(f"Loading instructions from {args.inst_dir}")
     instructions = load_instructions(
-        args.inst_dir, args.extensions, include_all=args.include_all, target_arch="BOTH"
+        args.inst_dir,
+        args.extensions,
+        include_all=args.include_all,
+        target_arch="BOTH",
+        include_mock=args.include_mock,
     )
 
     logging.info(f"Loading CSRs from {args.csr_dir}")
     csrs = load_csrs(
-        args.csr_dir, args.extensions, include_all=args.include_all, target_arch="BOTH"
+        args.csr_dir,
+        args.extensions,
+        include_all=args.include_all,
+        target_arch="BOTH",
+        include_mock=args.include_mock,
     )
 
     # Load exception codes
@@ -243,6 +259,7 @@ def main():
         args.extensions,
         include_all=args.include_all,
         resolved_codes_file=args.resolved_codes,
+        include_mock=args.include_mock,
     )
 
     # Process instructions and calculate masks

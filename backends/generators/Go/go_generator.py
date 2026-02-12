@@ -104,7 +104,12 @@ def parse_args():
         "--include-all",
         "-a",
         action="store_true",
-        help="Include all instructions, ignoring extension filtering",
+        help="Include all non-mock instructions, ignoring extension filtering (mock content still requires --include-mock)",
+    )
+    parser.add_argument(
+        "--include-mock",
+        action="store_true",
+        help="Include mock instructions and CSRs from the Xmock extension",
     )
     return parser.parse_args()
 
@@ -138,7 +143,9 @@ def main():
         logging.warning(f"CSR directory not found: {args.csr_dir}")
 
     # Load instructions filtered by extensions or all instructions
-    instr_dict = load_instructions(args.inst_dir, enabled_extensions, include_all, args.arch)
+    instr_dict = load_instructions(
+        args.inst_dir, enabled_extensions, include_all, args.arch, args.include_mock
+    )
     if not instr_dict:
         logging.error("No instructions found or all were filtered out.")
         logging.error("Try using --verbose to see more details about the filtering process.")
@@ -146,7 +153,7 @@ def main():
     logging.info(f"Loaded {len(instr_dict)} instructions")
 
     # Load CSRs filtered by extensions or all CSRs
-    csrs = load_csrs(args.csr_dir, enabled_extensions, include_all, args.arch)
+    csrs = load_csrs(args.csr_dir, enabled_extensions, include_all, args.arch, args.include_mock)
     if not csrs:
         logging.warning("No CSRs found or all were filtered out.")
     else:
