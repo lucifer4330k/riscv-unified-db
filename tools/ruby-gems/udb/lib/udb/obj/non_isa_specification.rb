@@ -143,55 +143,6 @@ class NonIsaSpecification
     )
   end
 
-  # Validation methods
-  sig { returns(T::Array[String]) }
-  # Validate all prose statement IDs and conventions for this spec.
-  def validate_prose_ids
-    return [] unless valid?
-
-    issues = []
-    statements = extract_prose_statements
-    statements.each do |stmt|
-      next unless stmt['id']
-      id = stmt['id']
-      source = stmt[:source] || 'unknown'
-
-      # Check ID format according to prose-schema conventions
-      unless valid_id_format?(id)
-        issues << "Invalid ID format '#{id}' in #{source}: must be lowercase with underscores/hyphens only"
-      end
-
-      # Check for non-ISA specification naming convention
-      unless valid_id_naming?(id)
-        issues << "ID '#{id}' in #{source} should start with '#{name.downcase}-' for non-ISA specifications"
-      end
-    end
-
-    # Check for duplicate IDs
-    issues.concat(find_duplicate_ids(statements))
-    issues
-  end
-
-  sig { params(include_sections: T::Boolean).returns(T::Array[T::Hash[T.any(String, Symbol), T.untyped]]) }
-  # Extract all prose statements from description and sections, tagging their source.
-  def extract_prose_statements(include_sections: true)
-    statements = []
-    # Extract from description
-    if spec_description.is_a?(Array)
-      spec_description.each_with_index { |stmt, i| statements << stmt.merge(source: "description[#{i}]") if stmt.is_a?(Hash) }
-    end
-    # Extract from sections
-    if include_sections
-      sections.each_with_index do |section, section_idx|
-        next unless section['content'].is_a?(Array)
-        section['content'].each_with_index do |stmt, stmt_idx|
-          statements << stmt.merge(source: "sections[#{section_idx}].content[#{stmt_idx}]") if stmt.is_a?(Hash)
-        end
-      end
-    end
-    statements
-  end
-
   # Rendering methods
   sig do
     params(
@@ -242,32 +193,6 @@ class NonIsaSpecification
   end
 
   private
-
-  # Validation helper methods
-  sig { params(id: String).returns(T::Boolean) }
-  # IDs must be lowercase, start with a letter, and use only underscores/hyphens.
-  def valid_id_format?(id)
-    id.match?(/^[a-z][a-z0-9_-]*$/)
-  end
-
-  sig { params(id: String).returns(T::Boolean) }
-  # IDs should start with spec name or allowed prefixes for non-ISA specs.
-  def valid_id_naming?(id)
-    id.start_with?(name.downcase) || id.match?(/^(ext|inst|csr)-/)
-  end
-
-  sig { params(statements: T::Array[T::Hash[T.any(String, Symbol), T.untyped]]).returns(T::Array[String]) }
-  # Find duplicate IDs in the statements array.
-  def find_duplicate_ids(statements)
-    issues = []
-    id_counts = Hash.new(0)
-    statements.each { |stmt| id_counts[stmt['id']] += 1 if stmt['id'] }
-    id_counts.each do |id, count|
-      next if count == 1
-      issues << "Duplicate ID '#{id}' appears #{count} times"
-    end
-    issues
-  end
 
   # Rendering helper methods
   sig do
