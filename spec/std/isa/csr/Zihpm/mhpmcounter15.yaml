@@ -16,8 +16,9 @@ priv_mode: M
 length: 64
 description: Programmable hardware performance counter.
 definedBy:
-  extension:
-    name: Smhpm
+  param:
+    name: NUM_HPM_COUNTERS
+    greaterThanOrEqual: 13
 fields:
   COUNT:
     location: 63-0

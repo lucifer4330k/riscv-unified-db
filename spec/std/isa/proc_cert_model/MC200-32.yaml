@@ -32,7 +32,6 @@ introduction: |
 
   * M extension (mandatory)
   * U extension (User-mode privilege level)
-  * Smpmp extension (M-mode PMP)
   * B (Bitfield) extension
   * Zce extension (additional 16-bit instructions suitable for microcontrollers)
   * CLIC extension (if/when ratified)
@@ -55,6 +54,4 @@ extensions:
   Zce:
     presence: mandatory
   U:
-    presence: mandatory
-  Smpmp:
     presence: mandatory
