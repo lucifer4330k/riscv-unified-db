@@ -35,7 +35,7 @@ func encode(a obj.As) *inst {
 	switch a {
 """
 
-    instr_str = ""
+    instr_parts = []
     # Process instructions in sorted order (by name)
     for name, info in sorted(instr_dict.items(), key=lambda x: x[0].upper()):
         match_str = info["match"]
@@ -48,21 +48,24 @@ func encode(a obj.As) *inst {
         funct7 = (enc_match >> 25) & ((1 << 7) - 1)
         # Create the instruction case name. For example, "bclri" becomes "ABCLRI"
         instr_case = f"A{name.upper().replace('.', '')}"
-        instr_str += f"""  case {instr_case}:
+        instr_parts.append(f"""  case {instr_case}:
     return &inst{{ {hex(opcode)}, {hex(funct3)}, {hex(rs1)}, {hex(rs2)}, {signed(csr_val, 12)}, {hex(funct7)} }}
-"""
+""")
+    instr_str = "".join(instr_parts)
+
     instructions_end = """  }
 	return nil
 }
 """
 
     # Build the CSR map block - now matching the second script's format
-    csrs_map_str = "var csrs = map[uint16]string {\n"
+    csrs_map_parts = ["var csrs = map[uint16]string {\n"]
     # Convert the dictionary to a list of tuples and sort by address
     csr_items = [(int(addr), name.upper()) for addr, name in csrs.items()]
     for addr, name in sorted(csr_items, key=lambda x: x[0]):
-        csrs_map_str += f'{hex(addr)} : "{name}",\n'
-    csrs_map_str += "}\n"
+        csrs_map_parts.append(f'{hex(addr)} : "{name}",\n')
+    csrs_map_parts.append("}\n")
+    csrs_map_str = "".join(csrs_map_parts)
 
     go_code = prelude + instr_str + instructions_end + "\n" + csrs_map_str
 
