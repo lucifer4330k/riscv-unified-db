@@ -4,8 +4,8 @@
 # For native setup: install mise, then run `mise install` from this directory.
 
 [tools]
-ruby = "3.4.8"
-python = "3.14.3"
+ruby = "3.3.6"
+python = "3.12.8"
 node = "24.13.1"
 uv = "0.10.2"
 cmake = "3.28"
