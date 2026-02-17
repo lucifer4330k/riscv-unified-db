@@ -30,6 +30,12 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+try:
+    from yaml import CSafeLoader as SafeLoader
+except ImportError:
+    from yaml import SafeLoader
+
 from mcp.server.lowlevel.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
@@ -141,10 +147,15 @@ def _ensure_in_gen(path: Path) -> Path:
     return p
 
 
-def _load_yaml(path: Path) -> dict:
+def _load_yaml_sync(path: Path) -> dict:
     """Load and parse a YAML file."""
     with open(path, encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or {}
+        return yaml.load(fh, Loader=SafeLoader) or {}
+
+
+async def _load_yaml(path: Path) -> dict:
+    """Load and parse a YAML file asynchronously."""
+    return await asyncio.to_thread(_load_yaml_sync, path)
 
 
 def _extract_defined_by(data: dict) -> list[str]:
@@ -278,6 +289,37 @@ def _matches_field_search(data: dict, field: str, pattern: str, use_regex: bool 
         return pattern.lower() in value_str.lower()
 
 
+async def _process_paths_concurrently(
+    paths: list[Path],
+    processor,  # Callable[[Path], Awaitable[Any | None]]
+    concurrency: int = 200,
+) -> list[Any]:
+    """
+    Process a list of paths concurrently with a semaphore.
+
+    Args:
+        paths: list of paths to process
+        processor: async function that takes a Path and returns a result or None
+        concurrency: max concurrent tasks (default 50)
+
+    Returns:
+        List of non-None results from processor.
+    """
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def worker(p: Path) -> Any | None:
+        async with semaphore:
+            try:
+                return await processor(p)
+            except Exception:
+                # processor handles specific errors, catch-all here
+                return None
+
+    tasks = [worker(p) for p in paths]
+    results = await asyncio.gather(*tasks)
+    return [r for r in results if r is not None]
+
+
 # ============================================================================
 # Path Iterators (domain-specific file discovery)
 # ============================================================================
@@ -360,7 +402,7 @@ async def read_gen_yaml(args: dict[str, Any]):
     if not isinstance(rel, str):
         raise ValueError("'path' arg must be a string")
     p = _ensure_in_gen(Path(rel))
-    data = _load_yaml(p)
+    data = await _load_yaml(p)
     return {"path": rel, "data": data}
 
 
@@ -426,25 +468,25 @@ async def search_instructions(args: dict[str, Any]):
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {e}")
 
-    for p in _iter_instruction_yaml_paths():
+    async def _process_inst(p: Path) -> dict[str, Any] | None:
         rel = p.relative_to(REPO_ROOT)
         rel_str = str(rel)
 
         try:
-            data = _load_yaml(p)
+            data = await _load_yaml(p)
         except Exception:
-            continue
+            return None
 
         # Keys filter: require all specified keys
         if keys and not all(k in data for k in keys):
-            continue
+            return None
 
         # Field-specific search
         if field:
             if term is None:
-                continue
+                return None
             if not _matches_field_search(data, field, term, use_regex):
-                continue
+                return None
         # General term filter
         elif term:
             namepart = p.stem.lower()
@@ -471,7 +513,7 @@ async def search_instructions(args: dict[str, Any]):
                 matched = term.lower() in search_text
 
             if not matched:
-                continue
+                return None
 
         defined_by = _extract_defined_by(data)
         ext_from_path = _extension_in_path(
@@ -484,13 +526,13 @@ async def search_instructions(args: dict[str, Any]):
             if ext_from_path:
                 present.add(ext_from_path)
             if present.isdisjoint(ext_set):
-                continue
+                return None
 
         # XLEN filter
         if xlen_set:
             inst_xlens = _extract_xlen(data)
             if inst_xlens.isdisjoint(xlen_set):
-                continue
+                return None
 
         info = {
             "path": rel_str,
@@ -517,14 +559,19 @@ async def search_instructions(args: dict[str, Any]):
             )
             info["fuzzy_score"] = round(score, 3)
 
-        results.append(info)
-        count += 1
-        if count >= limit:
-            break
+        return info
+
+    paths = _iter_instruction_yaml_paths()
+    results = await _process_paths_concurrently(paths, _process_inst)
 
     # Sort by fuzzy score if applicable
     if fuzzy and term:
         results.sort(key=lambda x: x.get("fuzzy_score", 0), reverse=True)
+
+    # Apply limit
+    count = len(results)
+    if limit and count > limit:
+        results = results[:limit]
 
     return {
         "count": count,
@@ -600,24 +647,24 @@ async def search_csrs(args: dict[str, Any]):
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {e}")
 
-    for p in _iter_csr_yaml_paths():
+    async def _process_csr(p: Path) -> dict[str, Any] | None:
         rel = str(p.relative_to(REPO_ROOT))
 
         try:
-            data = _load_yaml(p)
+            data = await _load_yaml(p)
         except Exception:
-            continue
+            return None
 
         # Keys filter
         if keys and not all(k in data for k in keys):
-            continue
+            return None
 
         # Field-specific search
         if field:
             if term is None:
-                continue
+                return None
             if not _matches_field_search(data, field, term, use_regex):
-                continue
+                return None
         # General term filter
         elif term:
             namepart = p.stem.lower()
@@ -640,19 +687,19 @@ async def search_csrs(args: dict[str, Any]):
                 matched = term.lower() in search_text
 
             if not matched:
-                continue
+                return None
 
         csr_exts = _csr_extensions(data)
 
         # Extension filter
         if ext_set and csr_exts.isdisjoint(ext_set):
-            continue
+            return None
 
         # XLEN filter
         if xlen_set:
             csr_xlens = _extract_xlen(data)
             if csr_xlens.isdisjoint(xlen_set):
-                continue
+                return None
 
         info = {
             "path": rel,
@@ -674,14 +721,19 @@ async def search_csrs(args: dict[str, Any]):
             )
             info["fuzzy_score"] = round(score, 3)
 
-        results.append(info)
-        count += 1
-        if count >= limit:
-            break
+        return info
+
+    paths = _iter_csr_yaml_paths()
+    results = await _process_paths_concurrently(paths, _process_csr)
 
     # Sort by fuzzy score if applicable
     if fuzzy and term:
         results.sort(key=lambda x: x.get("fuzzy_score", 0), reverse=True)
+
+    # Apply limit
+    count = len(results)
+    if limit and count > limit:
+        results = results[:limit]
 
     return {
         "count": count,
@@ -779,11 +831,11 @@ async def search_all(args: dict[str, Any]):
             with contextlib.suppress(re.error):
                 regex_pattern = re.compile(term, re.IGNORECASE)
 
-        for p in _iter_extension_yaml_paths():
+        async def _process_ext(p: Path) -> dict[str, Any] | None:
             try:
-                data = _load_yaml(p)
+                data = await _load_yaml(p)
                 if data.get("kind") != "extension":
-                    continue
+                    return None
 
                 name = data.get("name", "")
                 long_name = data.get("long_name", "")
@@ -809,18 +861,20 @@ async def search_all(args: dict[str, Any]):
                     if fuzzy:
                         score = max(_fuzzy_score(term, name), _fuzzy_score(term, long_name))
                         info["fuzzy_score"] = round(score, 3)
-
-                    ext_results["results"].append(info)
-                    ext_results["count"] += 1
-                    if ext_results["count"] >= limit_per_domain:
-                        break
+                    return info
+                return None
             except Exception:
-                continue
+                return None
+
+        paths = _iter_extension_yaml_paths()
+        found_exts = await _process_paths_concurrently(paths, _process_ext)
 
         # Sort by fuzzy score if applicable
         if fuzzy:
-            ext_results["results"].sort(key=lambda x: x.get("fuzzy_score", 0), reverse=True)
+            found_exts.sort(key=lambda x: x.get("fuzzy_score", 0), reverse=True)
 
+        ext_results["count"] = len(found_exts)
+        ext_results["results"] = found_exts[:limit_per_domain]
         results["extensions"] = ext_results
 
     # Calculate total matches
@@ -863,21 +917,22 @@ async def search_extensions(args: dict[str, Any]):
     limit = int(args.get("limit") or 100)
 
     # Collect all extensions
-    items: list[dict[str, Any]] = []
-    for p in _iter_extension_yaml_paths():
+    async def _process_all_ext(p: Path) -> dict[str, Any] | None:
         try:
-            data = _load_yaml(p)
+            data = await _load_yaml(p)
         except Exception:
-            continue
+            return None
         if data.get("kind") == "extension" and isinstance(data.get("name"), str):
-            items.append(
-                {
-                    "path": str(p.relative_to(REPO_ROOT)),
-                    "name": data.get("name"),
-                    "long_name": data.get("long_name"),
-                    "data": data,  # Keep full data for detail view
-                }
-            )
+            return {
+                "path": str(p.relative_to(REPO_ROOT)),
+                "name": data.get("name"),
+                "long_name": data.get("long_name"),
+                "data": data,  # Keep full data for detail view
+            }
+        return None
+
+    paths = _iter_extension_yaml_paths()
+    items = await _process_paths_concurrently(paths, _process_all_ext)
 
     # De-dup by name, favor shortest path
     by_name: dict[str, dict[str, Any]] = {}
@@ -907,52 +962,56 @@ async def search_extensions(args: dict[str, Any]):
 
     # Optionally include instructions
     if include_instructions:
-        insts: list[dict[str, Any]] = []
-        for p in _iter_instruction_yaml_paths():
+
+        async def _find_inst(p: Path) -> dict[str, Any] | None:
             try:
-                data = _load_yaml(p)
+                data = await _load_yaml(p)
             except Exception:
-                continue
+                return None
             defined_by = set(_extract_defined_by(data))
             rel_parts = p.relative_to(GEN_DIR).parts if str(p).startswith(str(GEN_DIR)) else p.parts
             ext_from_path = _extension_in_path(list(rel_parts))
             if name in defined_by or (ext_from_path == name):
-                insts.append(
-                    {
-                        "path": str(p.relative_to(REPO_ROOT)),
-                        "name": data.get("name"),
-                        "assembly": data.get("assembly"),
-                        "encoding": (
-                            data.get("encoding", {}).get("match")
-                            if isinstance(data.get("encoding"), dict)
-                            else None
-                        ),
-                    }
-                )
-                if len(insts) >= limit:
-                    break
+                return {
+                    "path": str(p.relative_to(REPO_ROOT)),
+                    "name": data.get("name"),
+                    "assembly": data.get("assembly"),
+                    "encoding": (
+                        data.get("encoding", {}).get("match")
+                        if isinstance(data.get("encoding"), dict)
+                        else None
+                    ),
+                }
+            return None
+
+        paths = _iter_instruction_yaml_paths()
+        insts = await _process_paths_concurrently(paths, _find_inst)
+        if len(insts) > limit:
+            insts = insts[:limit]
         result["instructions"] = {"count": len(insts), "items": insts}
 
     # Optionally include CSRs
     if include_csrs:
-        csrs: list[dict[str, Any]] = []
-        for p in _iter_csr_yaml_paths():
+
+        async def _find_csr(p: Path) -> dict[str, Any] | None:
             try:
-                data = _load_yaml(p)
+                data = await _load_yaml(p)
             except Exception:
-                continue
+                return None
             csr_exts = _csr_extensions(data)
             if name in csr_exts:
-                csrs.append(
-                    {
-                        "path": str(p.relative_to(REPO_ROOT)),
-                        "name": data.get("name"),
-                        "address": data.get("address"),
-                        "priv_mode": data.get("priv_mode"),
-                    }
-                )
-                if len(csrs) >= limit:
-                    break
+                return {
+                    "path": str(p.relative_to(REPO_ROOT)),
+                    "name": data.get("name"),
+                    "address": data.get("address"),
+                    "priv_mode": data.get("priv_mode"),
+                }
+            return None
+
+        paths = _iter_csr_yaml_paths()
+        csrs = await _process_paths_concurrently(paths, _find_csr)
+        if len(csrs) > limit:
+            csrs = csrs[:limit]
         result["csrs"] = {"count": len(csrs), "items": csrs}
 
     return result
@@ -1093,14 +1152,14 @@ async def find_function_usages(args: dict[str, Any]):
         raise ValueError("'name' is required")
 
     hits: list[dict[str, str]] = []
-    count = 0
 
     # Scan instruction YAMLs for function references
-    for p in _iter_instruction_yaml_paths():
+    async def _find_usage(p: Path) -> list[dict[str, str]] | None:
+        file_hits = []
         try:
-            data = _load_yaml(p)
+            data = await _load_yaml(p)
         except Exception:
-            continue
+            return None
 
         for key in ("operation()", "sail()"):
             val = data.get(key)
@@ -1108,16 +1167,23 @@ async def find_function_usages(args: dict[str, Any]):
                 # Extract snippet around first occurrence
                 idx = val.find(name)
                 snippet = val[max(0, idx - 60) : idx + 120]
-                hits.append(
+                file_hits.append(
                     {
                         "path": str(p.relative_to(REPO_ROOT)),
                         "key": key,
                         "snippet": snippet,
                     }
                 )
-                count += 1
-                if count >= limit:
-                    return {"count": count, "results": hits}
+        return file_hits if file_hits else None
+
+    paths = _iter_instruction_yaml_paths()
+    results_lists = await _process_paths_concurrently(paths, _find_usage)
+    # Flatten results
+    hits = [item for sublist in results_lists for item in sublist]
+
+    count = len(hits)
+    if count > limit:
+        hits = hits[:limit]
 
     return {"count": count, "results": hits}
 
