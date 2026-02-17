@@ -962,6 +962,7 @@ async def search_extensions(args: dict[str, Any]):
 
     # Optionally include instructions
     if include_instructions:
+
         async def _find_inst(p: Path) -> dict[str, Any] | None:
             try:
                 data = await _load_yaml(p)
@@ -991,6 +992,7 @@ async def search_extensions(args: dict[str, Any]):
 
     # Optionally include CSRs
     if include_csrs:
+
         async def _find_csr(p: Path) -> dict[str, Any] | None:
             try:
                 data = await _load_yaml(p)
