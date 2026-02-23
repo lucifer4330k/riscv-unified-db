@@ -13,6 +13,7 @@ dependencies = [
     "pytest>=9.0.2",
     "reuse>=6.2.0",
     "ruamel.yaml>=0.19.1",
+    "PyYAML>=6.0.1",
     "ruff>=0.15.0",
     "tqdm>=4.67.3",
 ]
