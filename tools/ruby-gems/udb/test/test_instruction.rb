@@ -26,8 +26,8 @@ class TestInstruction < Minitest::Test
     bne_inst = db.instructions.find { |i| i.name == "bne" }
     refute_nil bne_inst, "BNE instruction should be found"
 
-    # Get the decode variable for imm
-    imm_var = bne_inst.encodings.first.decode_variables.find { |v| v.name == "imm" }
+    # Get the decode variable for imm (using base 32)
+    imm_var = bne_inst.decode_variables(32).find { |v| v.name == "imm" }
     refute_nil imm_var, "imm decode variable should exist"
 
     # Verify it has sign_extend property
@@ -50,8 +50,8 @@ class TestInstruction < Minitest::Test
     add_inst = db.instructions.find { |i| i.name == "add" }
     refute_nil add_inst, "ADD instruction should be found"
 
-    # Get a decode variable (e.g., rs1)
-    rs1_var = add_inst.encodings.first.decode_variables.find { |v| v.name == "xs1" }
+    # Get a decode variable (e.g., rs1) using base 32
+    rs1_var = add_inst.decode_variables(32).find { |v| v.name == "xs1" }
     refute_nil rs1_var, "xs1 decode variable should exist"
 
     # Verify it does NOT have sign_extend
