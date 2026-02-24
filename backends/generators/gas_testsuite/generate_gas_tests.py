@@ -312,9 +312,7 @@ def is_compressed_instruction(encoding):
     return len(encoding) == 16
 
 
-def generate_test_files(
-    instructions, output_dir, extension_filter=None, target_arch="RV64"
-):
+def generate_test_files(instructions, output_dir, extension_filter=None, target_arch="RV64"):
     """Generate .s and .d test files for the given instructions."""
 
     # Group instructions by extension
@@ -381,9 +379,7 @@ def generate_test_files(
             inst_size = 2 if is_compressed else 4
 
             # Generate assembly line
-            asm_line = generate_test_assembly(
-                inst_name, assembly_fmt, variables, is_compressed
-            )
+            asm_line = generate_test_assembly(inst_name, assembly_fmt, variables, is_compressed)
             s_lines.append(f"\t{asm_line}")
 
             # Generate expected disassembly pattern
@@ -391,9 +387,7 @@ def generate_test_files(
             inst_pattern = inst_name.replace(".", r"\.")
 
             # Format: [ ]+offset:[ ]+encoding[ ]+instruction[ ]+operands
-            d_pattern = (
-                f"[ \t]+[0-9a-f]+:[ \t]+{encoding_pattern}[ \t]+{inst_pattern}[ \t]+.*"
-            )
+            d_pattern = f"[ \t]+[0-9a-f]+:[ \t]+{encoding_pattern}[ \t]+{inst_pattern}[ \t]+.*"
             d_lines.append(d_pattern)
 
             offset += inst_size
