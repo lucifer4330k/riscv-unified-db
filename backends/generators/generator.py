@@ -360,7 +360,9 @@ def load_instructions(root_dir, enabled_extensions, include_all=False, target_ar
                 encoding_to_use = encoding
                 instr_key = name
             else:
-                msg = f"Skipping {name} because its encoding in {path} has no recognized match field."
+                msg = (
+                    f"Skipping {name} because its encoding in {path} has no recognized match field."
+                )
                 logging.warning(msg)
                 encoding_filtered += 1
                 continue
@@ -426,9 +428,7 @@ def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64
         indirect_address = data.get("indirect_address")
 
         if not address and not indirect_address:
-            logging.error(
-                f"Missing 'address' or 'indirect_address' field in CSR {name} in {path}"
-            )
+            logging.error(f"Missing 'address' or 'indirect_address' field in CSR {name} in {path}")
             address_errors += 1
             continue
 
