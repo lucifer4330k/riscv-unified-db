@@ -93,7 +93,7 @@ CSR address definitions. Contains:
 #define CSR_<NAME> 0x<address>
 ```
 
-**Integration**: Append to `qemu/target/riscv/cpu_bits.h` within the appropriate guarded section.
+**Integration**: Include from `qemu/target/riscv/cpu_bits.h` (for example, via `#include "cpu_bits_generated.h"`) within the appropriate QEMU guarded section.
 
 ### 3. `riscv_disas_generated.c`
 
