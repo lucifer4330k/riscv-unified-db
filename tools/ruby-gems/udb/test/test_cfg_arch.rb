@@ -13,6 +13,7 @@ require "yaml"
 require "udb/logic"
 require "udb/cfg_arch"
 require "udb/resolver"
+require "udb/obj/non_isa_specification"
 
 class TestCfgArch < Minitest::Test
   include Udb
@@ -333,5 +334,68 @@ class TestCfgArch < Minitest::Test
 
     assert_equal 11, cfg_arch.extension("Xqcia").max_version.directly_defined_instructions.size
     assert_equal 157, cfg_arch.extension("Xqci").max_version.implied_instructions.count { |i| exts.any? { |e| i.defined_by_condition.mentions?(e) } }
+  end
+
+  def test_non_isa_spec_render_structured_prose_with_conditions
+    non_isa_spec = Udb::NonIsaSpecification.new("preface_demo", {})
+
+    prose = [
+      "Always visible paragraph.",
+      {
+        "text" => "Conditional paragraph.",
+        "when()" => "distribution_type == 'educational'"
+      },
+      {
+        "text" => "No condition paragraph."
+      }
+    ]
+
+    rendered = non_isa_spec.send(
+      :render_structured_prose,
+      prose,
+      normative: true,
+      non_normative: true,
+      when_callback: lambda { |condition, _statement|
+        condition.nil? || condition == "distribution_type == 'educational'"
+      }
+    )
+
+    assert_includes rendered, "Always visible paragraph."
+    assert_includes rendered, "Conditional paragraph."
+    assert_includes rendered, "No condition paragraph."
+
+    filtered = non_isa_spec.send(
+      :render_structured_prose,
+      prose,
+      normative: true,
+      non_normative: true,
+      when_callback: ->(condition, _statement) { condition.nil? }
+    )
+
+    assert_includes filtered, "Always visible paragraph."
+    assert_includes filtered, "No condition paragraph."
+    refute_includes filtered, "Conditional paragraph."
+  end
+
+  def test_non_isa_spec_section_and_cfg_condition_logic
+    non_isa_spec = Udb::NonIsaSpecification.new("preface_demo", { "when()" => "MXLEN == 64" })
+
+    assert non_isa_spec.send(:should_include_section?, { "title" => "A" }, nil)
+    assert non_isa_spec.send(
+      :should_include_section?,
+      { "title" => "B", "when()" => "feature_enabled" },
+      ->(_condition, _section) { true }
+    )
+    refute non_isa_spec.send(
+      :should_include_section?,
+      { "title" => "C", "when()" => "feature_enabled" },
+      ->(_condition, _section) { false }
+    )
+
+    cfg_arch_matching = Struct.new(:param_values).new({ MXLEN: 64 })
+    cfg_arch_non_matching = Struct.new(:param_values).new({ SXLEN: 64 })
+
+    assert non_isa_spec.exists_in_cfg?(cfg_arch_matching)
+    refute non_isa_spec.exists_in_cfg?(cfg_arch_non_matching)
   end
 end
