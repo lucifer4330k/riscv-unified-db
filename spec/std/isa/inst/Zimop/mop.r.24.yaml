@@ -32,7 +32,5 @@ access:
   vs: always
   vu: always
 data_independent_timing: false
-hints:
-  - { $ref: inst/Zicfiss/sspopchk.x1.yaml# }
 operation(): |
   X[xd] = 0;

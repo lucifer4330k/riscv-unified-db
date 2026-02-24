@@ -49,7 +49,7 @@ access:
   vs: always
   vu: always
 data_independent_timing: false
-<% if n == 6 -%>
+<% if n == 7 -%>
 hints:
   - { $ref: inst/Zicfiss/sspush.x1.yaml# }
   - { $ref: inst/Zicfiss/sspush.x5.yaml# }

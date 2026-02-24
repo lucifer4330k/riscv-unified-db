@@ -48,11 +48,9 @@ access:
   vs: always
   vu: always
 data_independent_timing: false
-<% if n == 24 -%>
+<% if n == 28 -%>
 hints:
   - { $ref: inst/Zicfiss/sspopchk.x1.yaml# }
-<% elsif n == 28 -%>
-hints:
   - { $ref: inst/Zicfiss/sspopchk.x5.yaml# }
   - { $ref: inst/Zicfiss/ssrdp.yaml# }
 <% end -%>
