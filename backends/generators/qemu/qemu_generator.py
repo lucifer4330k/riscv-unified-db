@@ -196,14 +196,14 @@ class QemuDisassemblerTable:
 """
 
         content += "/* Instruction disassembly definitions */\n"
-        content += '/* Format: {"mnemonic", ... assembly info ...}, */\n\n'
+        content += '/* Format (example stub): {"mnemonic", /* TODO: opcode and operand fields */ }, */\n\n'
 
         for name in sorted(self.disasm_entries.keys()):
             entry = self.disasm_entries[name]
             assembly = entry["assembly_format"]
 
             content += f"  /* {name} - assembly: {assembly} */\n"
-            content += f'  {{"{name}", ..., /* TODO: Fill in operand format */, }},\n'
+            content += f'  /* {{"{name}", /* TODO: Fill in opcode and operand format for "{assembly}" */ }}, */\n'
             content += "\n"
 
         with open(output_file, "w", encoding="utf-8") as f:
