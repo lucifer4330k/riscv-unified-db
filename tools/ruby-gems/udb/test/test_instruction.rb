@@ -14,11 +14,12 @@ class TestInstruction < Minitest::Test
 
   def setup
     @resolver = Udb::Resolver.new(Udb.repo_root)
+    @cfg_arch = @resolver.cfg_arch_for("_")
   end
 
   def test_decode_variable_sext_with_size
     # Load the database to get access to instructions
-    db = @resolver.arch_def
+    db = @cfg_arch
 
     # Find an instruction with a signed immediate (sign_extend: true)
     # BNE is a good example - it has imm with sign_extend: true
@@ -42,7 +43,7 @@ class TestInstruction < Minitest::Test
 
   def test_decode_variable_without_sext
     # Load the database
-    db = @resolver.arch_def
+    db = @cfg_arch
 
     # Find an instruction without signed immediate
     # ADD has rs1, rs2, rd but no signed immediates
