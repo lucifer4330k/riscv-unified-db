@@ -13,13 +13,23 @@ description:
   "
 long_name: TODO
 schema:
-  type: integer
-  minimum: 0
-  maximum: 16
+  oneOf:
+    - when:
+        param:
+          name: MXLEN
+          equal: 32
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9
+    - when:
+        param:
+          name: MXLEN
+          equal: 64
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 16
 definedBy:
   extension:
     name: S
-
-requirements:
-  idl(): |
-    MXLEN == 32 -> ASID_WIDTH <= 9;
