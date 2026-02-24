@@ -28,14 +28,14 @@ class TestInstruction < Minitest::Test
     # Get the decode variable for imm
     imm_var = bne_inst.encodings.first.decode_variables.find { |v| v.name == "imm" }
     refute_nil imm_var, "imm decode variable should exist"
-    
+
     # Verify it has sign_extend property
     assert imm_var.sext?, "imm should have sign_extend set to true"
-    
+
     # Extract the variable and verify it includes the size parameter
     extracted = imm_var.extract
     assert_match(/sext\(.+,\s*\d+\)/, extracted, "sext call should include size parameter")
-    
+
     # For BNE, the imm is 13 bits (12 bits + 1 bit left shift = 13 bits total)
     assert_match(/sext\(.+,\s*13\)/, extracted, "sext call for BNE imm should have size 13")
   end
@@ -52,10 +52,10 @@ class TestInstruction < Minitest::Test
     # Get a decode variable (e.g., rs1)
     rs1_var = add_inst.encodings.first.decode_variables.find { |v| v.name == "xs1" }
     refute_nil rs1_var, "xs1 decode variable should exist"
-    
+
     # Verify it does NOT have sign_extend
     refute rs1_var.sext?, "xs1 should not have sign_extend"
-    
+
     # Extract and verify no sext call
     extracted = rs1_var.extract
     refute_match(/sext/, extracted, "non-signed decode variable should not use sext")
