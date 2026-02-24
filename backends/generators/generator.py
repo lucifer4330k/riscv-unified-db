@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import functools
 import json
 import logging
 import os
@@ -8,6 +9,30 @@ import yaml
 
 pp = pprint.PrettyPrinter(indent=2)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:: %(message)s")
+
+
+@functools.lru_cache(maxsize=16)
+def _scan_yaml_files(root_dir):
+    """
+    Recursively walk through root_dir and load all YAML files.
+    Returns (list of (path, data), total_yaml_files_count).
+    """
+    results = []
+    found_files_count = 0
+    for dirpath, _, filenames in os.walk(root_dir):
+        for fname in filenames:
+            if not fname.endswith(".yaml"):
+                continue
+            found_files_count += 1
+            path = os.path.join(dirpath, fname)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                results.append((path, data))
+            except Exception as e:
+                logging.error(f"Error parsing {path}: {e}")
+                continue
+    return results, found_files_count
 
 
 def check_requirement(req, exts):
@@ -207,156 +232,154 @@ def load_instructions(root_dir, enabled_extensions, include_all=False, target_ar
         f"Searching for instruction files in {root_dir} for target architecture {target_arch}"
     )
 
-    for dirpath, _, filenames in os.walk(root_dir):
-        for fname in filenames:
-            if not fname.endswith(".yaml"):
+    files_data, found_files = _scan_yaml_files(root_dir)
+
+    for path, data in files_data:
+        if data.get("kind") != "instruction":
+            continue
+
+        found_instructions += 1
+        name = data.get("name")
+        if not name:
+            logging.error(f"Missing 'name' field in {path}")
+            continue
+
+        # If include_all is True, skip extension filtering
+        if not include_all:
+            # Check if this instruction is defined by an enabled extension
+            definedBy = data.get("definedBy")
+            if definedBy is None:
+                logging.error(f"Missing 'definedBy' field in instruction {name} in {path}")
+                extension_filtered += 1
                 continue
-            found_files += 1
-            path = os.path.join(dirpath, fname)
+
+            logging.debug(f"Instruction {name} definedBy: {definedBy}")
+            meets_extension_req = parse_extension_requirements(definedBy)
+            if not meets_extension_req(enabled_extensions):
+                msg = f"Skipping {name} because its extension is not enabled"
+                logging.debug(msg)
+                extension_filtered += 1
+                continue
+
+            # Check if this instruction is excluded by an enabled extension
+            excludedBy = data.get("excludedBy")
+            if excludedBy:
+                exclusion_check = parse_extension_requirements(excludedBy)
+                if exclusion_check(enabled_extensions):
+                    msg = f"Skipping {name} because it's excluded by an enabled extension"
+                    logging.debug(msg)
+                    extension_filtered += 1
+                    continue
+
+        encoding = data.get("encoding", {})
+        if not encoding:
+            # Check if this instruction uses the new schema with a 'format' field
+            format_field = data.get("format")
+            if not format_field:
+                logging.error(f"Missing 'encoding' field in instruction {name} in {path}")
+                encoding_filtered += 1
+                continue
+
+            # Try to build a match string from the format field
             try:
-                with open(path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-            except Exception as e:
-                logging.error(f"Error parsing {path}: {e}")
-                continue
-
-            if data.get("kind") != "instruction":
-                continue
-
-            found_instructions += 1
-            name = data.get("name")
-            if not name:
-                logging.error(f"Missing 'name' field in {path}")
-                continue
-
-            # If include_all is True, skip extension filtering
-            if not include_all:
-                # Check if this instruction is defined by an enabled extension
-                definedBy = data.get("definedBy")
-                if definedBy is None:
-                    logging.error(f"Missing 'definedBy' field in instruction {name} in {path}")
-                    extension_filtered += 1
-                    continue
-
-                logging.debug(f"Instruction {name} definedBy: {definedBy}")
-                meets_extension_req = parse_extension_requirements(definedBy)
-                if not meets_extension_req(enabled_extensions):
-                    msg = f"Skipping {name} because its extension is not enabled"
-                    logging.debug(msg)
-                    extension_filtered += 1
-                    continue
-
-                # Check if this instruction is excluded by an enabled extension
-                excludedBy = data.get("excludedBy")
-                if excludedBy:
-                    exclusion_check = parse_extension_requirements(excludedBy)
-                    if exclusion_check(enabled_extensions):
-                        msg = f"Skipping {name} because it's excluded by an enabled extension"
-                        logging.debug(msg)
-                        extension_filtered += 1
-                        continue
-
-            encoding = data.get("encoding", {})
-            if not encoding:
-                # Check if this instruction uses the new schema with a 'format' field
-                format_field = data.get("format")
-                if not format_field:
-                    logging.error(f"Missing 'encoding' field in instruction {name} in {path}")
-                    encoding_filtered += 1
-                    continue
-
-                # Try to build a match string from the format field
                 match_string = build_match_from_format(format_field)
-                if not match_string:
-                    logging.error(
-                        f"Could not build encoding from format field in instruction {name} in {path}"
-                    )
-                    encoding_filtered += 1
-                    continue
+            except ValueError as e:
+                logging.error(f"Error building match string for {name} in {path}: {e}")
+                encoding_filtered += 1
+                continue
 
-                # Create a synthetic encoding compatible with existing logic
-                encoding = {"match": match_string, "variables": []}
-                logging.debug(f"Built encoding from format field for {name}")
+            if not match_string:
+                logging.error(
+                    f"Could not build encoding from format field in instruction {name} in {path}"
+                )
+                encoding_filtered += 1
+                continue
 
-            # Check if the instruction specifies a base architecture constraint
-            base = data.get("base")
-            if base is not None:
-                if (base == 32 and target_arch not in ["RV32", "BOTH"]) or (
-                    base == 64 and target_arch not in ["RV64", "BOTH"]
-                ):
-                    msg = f"Skipping {name} because it requires base {base} which doesn't match target arch {target_arch}"
-                    logging.debug(msg)
-                    encoding_filtered += 1
-                    continue
+            # Create a synthetic encoding compatible with existing logic
+            encoding = {"match": match_string, "variables": []}
+            logging.debug(f"Built encoding from format field for {name}")
 
-            # Determine which encoding to use based on target architecture
-            if isinstance(encoding, dict):
-                if "RV64" in encoding and "RV32" in encoding:
-                    # Instruction has both RV32 and RV64 encodings
-                    if target_arch == "RV64":
-                        encoding_to_use = encoding["RV64"]
-                        instr_key = name
-                    elif target_arch == "RV32":
-                        encoding_to_use = encoding["RV32"]
-                        instr_key = name
-                    else:  # BOTH
-                        # For "BOTH", include both encodings with suitable naming
-                        rv64_encoding = encoding["RV64"]
-                        rv32_encoding = encoding["RV32"]
+        # Check if the instruction specifies a base architecture constraint
+        base = data.get("base")
+        if base is not None:
+            if (base == 32 and target_arch not in ["RV32", "BOTH"]) or (
+                base == 64 and target_arch not in ["RV64", "BOTH"]
+            ):
+                msg = f"Skipping {name} because it requires base {base} which doesn't match target arch {target_arch}"
+                logging.debug(msg)
+                encoding_filtered += 1
+                continue
 
-                        # Process RV64 encoding
-                        rv64_match = rv64_encoding.get("match")
-                        rv32_match = rv32_encoding.get("match")
+        # Determine which encoding to use based on target architecture
+        if isinstance(encoding, dict):
+            if "RV64" in encoding and "RV32" in encoding:
+                # Instruction has both RV32 and RV64 encodings
+                if target_arch == "RV64":
+                    encoding_to_use = encoding["RV64"]
+                    instr_key = name
+                elif target_arch == "RV32":
+                    encoding_to_use = encoding["RV32"]
+                    instr_key = name
+                else:  # BOTH
+                    # For "BOTH", include both encodings with suitable naming
+                    rv64_encoding = encoding["RV64"]
+                    rv32_encoding = encoding["RV32"]
 
-                        if rv64_match:
-                            instr_dict[name] = {"match": rv64_match}  # RV64 gets the default name
+                    # Process RV64 encoding
+                    rv64_match = rv64_encoding.get("match")
+                    rv32_match = rv32_encoding.get("match")
 
-                        if rv32_match and rv32_match != rv64_match:
-                            # Process RV32 encoding with a _rv32 suffix
-                            instr_dict[f"{name}_rv32"] = {"match": rv32_match}
+                    if rv64_match:
+                        instr_dict[name] = {"match": rv64_match}  # RV64 gets the default name
 
-                        continue  # Skip the rest of the loop as we've already added the encodings
-                elif "RV64" in encoding:
-                    if target_arch in ["RV64", "BOTH"]:
-                        encoding_to_use = encoding["RV64"]
-                        instr_key = name
-                    else:
-                        msg = f"Skipping {name} because it has only RV64 encoding in {path}"
-                        logging.debug(msg)
-                        encoding_filtered += 1
-                        continue
-                elif "RV32" in encoding:
-                    if target_arch in ["RV32", "BOTH"]:
-                        encoding_to_use = encoding["RV32"]
-                        instr_key = f"{name}_rv32" if target_arch == "BOTH" else name
-                    else:
-                        msg = f"Skipping {name} because it has only RV32 encoding in {path}"
-                        logging.debug(msg)
-                        encoding_filtered += 1
-                        continue
-                elif "match" in encoding:
-                    # Generic encoding, no specific architecture
-                    encoding_to_use = encoding
+                    if rv32_match and rv32_match != rv64_match:
+                        # Process RV32 encoding with a _rv32 suffix
+                        instr_dict[f"{name}_rv32"] = {"match": rv32_match}
+
+                    continue  # Skip the rest of the loop as we've already added the encodings
+            elif "RV64" in encoding:
+                if target_arch in ["RV64", "BOTH"]:
+                    encoding_to_use = encoding["RV64"]
                     instr_key = name
                 else:
-                    msg = f"Skipping {name} because its encoding in {path} has no recognized match field."
-                    logging.warning(msg)
+                    msg = f"Skipping {name} because it has only RV64 encoding in {path}"
+                    logging.debug(msg)
                     encoding_filtered += 1
                     continue
+            elif "RV32" in encoding:
+                if target_arch in ["RV32", "BOTH"]:
+                    encoding_to_use = encoding["RV32"]
+                    instr_key = f"{name}_rv32" if target_arch == "BOTH" else name
+                else:
+                    msg = f"Skipping {name} because it has only RV32 encoding in {path}"
+                    logging.debug(msg)
+                    encoding_filtered += 1
+                    continue
+            elif "match" in encoding:
+                # Generic encoding, no specific architecture
+                encoding_to_use = encoding
+                instr_key = name
             else:
-                msg = f"Skipping {name} because its encoding in {path} is not a dictionary."
+                msg = (
+                    f"Skipping {name} because its encoding in {path} has no recognized match field."
+                )
                 logging.warning(msg)
                 encoding_filtered += 1
                 continue
+        else:
+            msg = f"Skipping {name} because its encoding in {path} is not a dictionary."
+            logging.warning(msg)
+            encoding_filtered += 1
+            continue
 
-            match_str = encoding_to_use.get("match")
-            if not match_str:
-                msg = f"Skipping {name} because 'match' field is missing in {path}"
-                logging.warning(msg)
-                encoding_filtered += 1
-                continue
+        match_str = encoding_to_use.get("match")
+        if not match_str:
+            msg = f"Skipping {name} because 'match' field is missing in {path}"
+            logging.warning(msg)
+            encoding_filtered += 1
+            continue
 
-            instr_dict[instr_key] = {"match": match_str}
+        instr_dict[instr_key] = {"match": match_str}
 
     if found_instructions > 0:
         logging.info(f"Found {found_instructions} instruction definitions in {found_files} files")
@@ -389,84 +412,72 @@ def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64
 
     logging.info(f"Searching for CSR files in {csr_root} for target architecture {target_arch}")
 
-    for dirpath, _, filenames in os.walk(csr_root):
-        for fname in filenames:
-            if not fname.endswith(".yaml"):
+    files_data, found_files = _scan_yaml_files(csr_root)
+
+    for path, data in files_data:
+        if data.get("kind") != "csr":
+            continue
+
+        found_csrs += 1
+        name = data.get("name")
+        if not name:
+            logging.error(f"Missing 'name' field in {path}")
+            continue
+
+        address = data.get("address")
+        indirect_address = data.get("indirect_address")
+
+        if not address and not indirect_address:
+            logging.error(f"Missing 'address' or 'indirect_address' field in CSR {name} in {path}")
+            address_errors += 1
+            continue
+
+        # Check if the CSR has a base constraint (32 or 64)
+        base = data.get("base")
+        if base:
+            if base == 32 and target_arch not in ["RV32", "BOTH"]:
+                logging.debug(f"Skipping CSR {name} because it requires RV32 base")
+                arch_filtered += 1
                 continue
-            found_files += 1
-            path = os.path.join(dirpath, fname)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-            except Exception as e:
-                logging.error(f"Error parsing CSR file {path}: {e}")
+            elif base == 64 and target_arch not in ["RV64", "BOTH"]:
+                logging.debug(f"Skipping CSR {name} because it requires RV64 base")
+                arch_filtered += 1
                 continue
 
-            if data.get("kind") != "csr":
-                continue
+        # If include_all is True, skip extension filtering
+        if not include_all:
+            # Check if this CSR is defined by an enabled extension
+            definedBy = data.get("definedBy")
 
-            found_csrs += 1
-            name = data.get("name")
-            if not name:
-                logging.error(f"Missing 'name' field in {path}")
-                continue
-
-            address = data.get("address")
-            indirect_address = data.get("indirect_address")
-
-            if not address and not indirect_address:
-                logging.error(
-                    f"Missing 'address' or 'indirect_address' field in CSR {name} in {path}"
+            # If definedBy is missing, log a warning but don't skip
+            # This is different from instructions where we're more strict
+            if definedBy is None:
+                logging.warning(
+                    f"Missing 'definedBy' field in CSR {name} in {path}, including anyway"
                 )
-                address_errors += 1
-                continue
-
-            # Check if the CSR has a base constraint (32 or 64)
-            base = data.get("base")
-            if base:
-                if base == 32 and target_arch not in ["RV32", "BOTH"]:
-                    logging.debug(f"Skipping CSR {name} because it requires RV32 base")
-                    arch_filtered += 1
-                    continue
-                elif base == 64 and target_arch not in ["RV64", "BOTH"]:
-                    logging.debug(f"Skipping CSR {name} because it requires RV64 base")
-                    arch_filtered += 1
+            else:
+                logging.debug(f"CSR {name} definedBy: {definedBy}")
+                meets_extension_req = parse_extension_requirements(definedBy)
+                if not meets_extension_req(enabled_extensions):
+                    msg = f"Skipping CSR {name} because its extension is not enabled"
+                    logging.debug(msg)
+                    extension_filtered += 1
                     continue
 
-            # If include_all is True, skip extension filtering
-            if not include_all:
-                # Check if this CSR is defined by an enabled extension
-                definedBy = data.get("definedBy")
+        # If we're here, we've passed all checks
+        try:
+            # Use address if available, otherwise use indirect_address
+            addr_to_use = address if address is not None else indirect_address
+            if isinstance(addr_to_use, int):
+                addr_int = addr_to_use
+            else:
+                addr_int = int(addr_to_use, 0)
 
-                # If definedBy is missing, log a warning but don't skip
-                # This is different from instructions where we're more strict
-                if definedBy is None:
-                    logging.warning(
-                        f"Missing 'definedBy' field in CSR {name} in {path}, including anyway"
-                    )
-                else:
-                    logging.debug(f"CSR {name} definedBy: {definedBy}")
-                    meets_extension_req = parse_extension_requirements(definedBy)
-                    if not meets_extension_req(enabled_extensions):
-                        msg = f"Skipping CSR {name} because its extension is not enabled"
-                        logging.debug(msg)
-                        extension_filtered += 1
-                        continue
-
-            # If we're here, we've passed all checks
-            try:
-                # Use address if available, otherwise use indirect_address
-                addr_to_use = address if address is not None else indirect_address
-                if isinstance(addr_to_use, int):
-                    addr_int = addr_to_use
-                else:
-                    addr_int = int(addr_to_use, 0)
-
-                csrs[addr_int] = name.upper()
-            except Exception as e:
-                logging.error(f"Error parsing address {addr_to_use} in {path}: {e}")
-                address_errors += 1
-                continue
+            csrs[addr_int] = name.upper()
+        except Exception as e:
+            logging.error(f"Error parsing address {addr_to_use} in {path}: {e}")
+            address_errors += 1
+            continue
 
     if found_csrs > 0:
         logging.info(f"Found {found_csrs} CSR definitions in {found_files} files")
