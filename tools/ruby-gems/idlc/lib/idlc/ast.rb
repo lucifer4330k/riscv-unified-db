@@ -10,8 +10,9 @@ require_relative "type"
 require_relative "symbol_table"
 require_relative "syntax_node"
 
-module Idl
+require_relative "ast_decl"
 
+module Idl
   # type, from ruby's perspective, of any IDL value
   BasicValueRbType = T.type_alias {
     T.any(
@@ -34,11 +35,7 @@ module Idl
   EMPTY_ARRAY = [].freeze
 
   # base class for all nodes considered part of the Ast
-  # @abstract
   class AstNode
-    extend T::Sig
-    extend T::Helpers
-    abstract!
 
     Bits1Type = Type.new(:bits, width: 1, qualifiers: [:known].freeze).freeze
     PossiblyUnknownBits1Type = Type.new(:bits, width: 1).freeze
@@ -5135,8 +5132,10 @@ module Idl
         elsif op == "|"
           # if one side is all ones, we don't need to know the other side
           rhs_type = rhs.type(symtab)
+          type_error "Right-hand side of bitwise | must be a Bits type (is #{rhs_type})" unless rhs_type.kind == :bits
           value_error("Unknown width") if rhs_type.width == :unknown
           lhs_type = lhs.type(symtab)
+          type_error "Left-hand side of bitwise | must be a Bits type (is #{lhs_type})" unless lhs_type.kind == :bits
           value_error("unknown width") if lhs_type.width == :unknown
 
           value_result = value_try do
