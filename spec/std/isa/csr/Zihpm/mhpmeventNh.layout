@@ -22,6 +22,9 @@ definedBy:
     - xlen: 32
     - extension:
         name: Sscofpmf
+    - param:
+        name: NUM_HPM_COUNTERS
+        greaterThanOrEqual: <%= hpm_num - 2 %>
 fields:
   OF:
     location: 31

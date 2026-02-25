@@ -18,8 +18,9 @@ description: |
   Programmable hardware performance counter event selector
   <% if ext?(:Sscofpmf) %> and overflow/filtering control<% end %>
 definedBy:
-  extension:
-    name: Smhpm
+  param:
+    name: NUM_HPM_COUNTERS
+    greaterThanOrEqual: 21
 fields:
   OF:
     location: 63

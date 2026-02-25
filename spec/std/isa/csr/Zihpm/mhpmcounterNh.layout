@@ -17,8 +17,9 @@ description: |
 definedBy:
   allOf:
     - xlen: 32
-    - extension:
-        name: Smhpm
+    - param:
+        name: NUM_HPM_COUNTERS
+        greaterThanOrEqual: <%= hpm_num - 2 %>
 fields:
   COUNT:
     location: 31-0

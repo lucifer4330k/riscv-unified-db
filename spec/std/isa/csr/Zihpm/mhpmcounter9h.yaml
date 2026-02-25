@@ -19,8 +19,9 @@ description: |
 definedBy:
   allOf:
     - xlen: 32
-    - extension:
-        name: Smhpm
+    - param:
+        name: NUM_HPM_COUNTERS
+        greaterThanOrEqual: 7
 fields:
   COUNT:
     location: 31-0

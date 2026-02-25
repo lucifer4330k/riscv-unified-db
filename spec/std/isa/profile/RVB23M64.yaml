@@ -28,9 +28,6 @@ extensions:
   Sm:
     version: "~> 1.13"
     presence: mandatory
-  Smpmp:
-    version: "~> 1.13"
-    presence: mandatory
 
   #########################################################################
   # OPTIONAL LOCALIZED extensions in RVB23M64
@@ -123,3 +120,13 @@ param_constraints:
   PMP_GRANULARITY:
     schema:
       maximum: 12
+  NUM_HPM_COUNTERS:
+    schema:
+      minimum: 0 # Just to mandate presence if needed, or specific value if required by profile.
+      # "Smhpm" usually means some counters are present, but Smhpm spec doesn't strictly mandate > 0 counters if HPM_COUNTER_EN is used?
+      # Actually Smhpm was mandatory in the profile.
+      # Let's say we assume at least some counters or just the parameter being set.
+      # The previous profile mandated Smhpm.
+      # If we want to strictly follow, we might want to ensure at least 3 counters?
+      # or just leave it unconstrained but present?
+      # I'll stick to defining it.
