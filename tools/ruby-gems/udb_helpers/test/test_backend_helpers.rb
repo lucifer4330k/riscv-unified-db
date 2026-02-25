@@ -69,6 +69,16 @@ class TestBackendHelpers < Minitest::Test
     assert_equal("[#idl:code:inst:fo_o:ba_r]", anchor_inside_idl_inst_code("fo.o","ba.r"))
   end
 
+  def test_idl_code_csr
+    assert_equal("%%IDL_CODE_LINK%csr;foo.bar;foo.bar%%", link_into_idl_csr_code("foo","bar"))
+    assert_equal("[#idl:code:csr:foo:bar]", anchor_inside_idl_csr_code("foo","bar"))
+  end
+
+  def test_idl_code_csr_field
+    assert_equal("%%IDL_CODE_LINK%csr_field;foo.bar.baz;foo.bar.baz%%", link_into_idl_csr_field_code("foo","bar","baz"))
+    assert_equal("[#idl:code:csr_field:foo:bar:baz]", anchor_inside_idl_csr_field_code("foo","bar","baz"))
+  end
+
 end
 
 class TestAsciidocUtils < Minitest::Test
@@ -115,6 +125,14 @@ class TestAsciidocUtils < Minitest::Test
     assert_equal("<<idl:code:inst:foo:bar,zort>>", AsciidocUtils.resolve_links("%%IDL_CODE_LINK%inst;foo.bar;zort%%"))
     assert_equal("<<idl:code:inst:foo:bar,foo.bar>>", AsciidocUtils.resolve_links(link_into_idl_inst_code("foo","bar")))
   end
+
+  def test_resolve_links_idl_code_csr
+    assert_equal("<<idl:code:csr:foo:bar,zort>>", AsciidocUtils.resolve_links("%%IDL_CODE_LINK%csr;foo.bar;zort%%"))
+  end
+
+  def test_resolve_links_idl_code_csr_field
+    assert_equal("<<idl:code:csr_field:foo:bar:baz,zort>>", AsciidocUtils.resolve_links("%%IDL_CODE_LINK%csr_field;foo.bar.baz;zort%%"))
+  end
 end
 
 class TestAntoraUtils < Minitest::Test
@@ -153,5 +171,13 @@ class TestAntoraUtils < Minitest::Test
   def test_resolve_links_idl_code
     assert_equal("xref:insts:foo.adoc#idl:code:inst:foo:bar[zort]", AntoraUtils.resolve_links("%%IDL_CODE_LINK%inst;foo.bar;zort%%"))
     assert_equal("xref:insts:foo.adoc#idl:code:inst:foo:bar[foo.bar]", AntoraUtils.resolve_links(link_into_idl_inst_code("foo","bar")))
+  end
+
+  def test_resolve_links_idl_code_csr
+    assert_equal("xref:csrs:foo.adoc#idl:code:csr:foo:bar[zort]", AntoraUtils.resolve_links("%%IDL_CODE_LINK%csr;foo.bar;zort%%"))
+  end
+
+  def test_resolve_links_idl_code_csr_field
+    assert_equal("xref:csrs:foo.adoc#idl:code:csr_field:foo:bar:baz[zort]", AntoraUtils.resolve_links("%%IDL_CODE_LINK%csr_field;foo.bar.baz;zort%%"))
   end
 end
