@@ -377,6 +377,21 @@ class TestCfgArch < Minitest::Test
     refute_includes filtered, "Conditional paragraph."
   end
 
+  def test_non_isa_spec_render_structured_prose_with_string
+    non_isa_spec = Udb::NonIsaSpecification.new("preface_demo", {})
+
+    prose = "Simple paragraph."
+
+    rendered = non_isa_spec.send(
+      :render_structured_prose,
+      prose,
+      normative: true,
+      non_normative: true,
+      when_callback: ->(_condition, _statement) { true }
+    )
+
+    assert_equal prose, rendered
+  end
   def test_non_isa_spec_section_and_cfg_condition_logic
     non_isa_spec = Udb::NonIsaSpecification.new("preface_demo", { "when()" => "MXLEN == 64" })
 
