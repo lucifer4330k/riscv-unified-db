@@ -340,7 +340,9 @@ class TestCfgArch < Minitest::Test
     non_isa_spec = Udb::NonIsaSpecification.new("preface_demo", {})
 
     prose = [
-      "Always visible paragraph.",
+      {
+        "text" => "Always visible paragraph."
+      },
       {
         "text" => "Conditional paragraph.",
         "when()" => "distribution_type == 'educational'"
