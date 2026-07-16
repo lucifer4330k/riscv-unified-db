@@ -245,12 +245,10 @@ class NonIsaSpecification
       text = nil
       condition = nil
 
-      if statement.is_a?(String)
-        text = statement
-      elsif statement.is_a?(Hash)
-        text = statement['text']
-        condition = statement['when()']
-      end
+      next unless statement.is_a?(Hash)
+
+      text = statement['text']
+      condition = statement['when()']
 
       next unless text
 
