@@ -148,18 +148,14 @@ class NonIsaSpecification
     params(
       cfg_arch: T.untyped,
       base_level: Integer,
-      normative: T::Boolean,
-      non_normative: T::Boolean
     ).returns(String)
   end
   # Configuration-aware rendering
-  def render_for_cfg(cfg_arch, base_level: 3, normative: true, non_normative: true)
+  def render_for_cfg(cfg_arch, base_level: 3)
     return "" unless exists_in_cfg?(cfg_arch)
 
     to_asciidoc(
       base_level: base_level,
-      normative: normative,
-      non_normative: non_normative,
       when_callback: create_when_callback(cfg_arch)
     )
   end
@@ -167,24 +163,22 @@ class NonIsaSpecification
   sig do
     params(
       base_level: Integer,
-      normative: T::Boolean,
-      non_normative: T::Boolean,
       when_callback: T.nilable(T.proc.params(arg0: T.untyped, arg1: T.untyped).returns(T::Boolean))
     ).returns(String)
   end
   # Render the full specification as AsciiDoc, including description, sections, and references.
-  def to_asciidoc(base_level: 3, normative: true, non_normative: true, when_callback: nil)
+  def to_asciidoc(base_level: 3, when_callback: nil)
     return create_fallback_content(base_level) unless valid?
 
     content = []
 
     # Add main description prose
-    desc_content = render_structured_prose(spec_description, normative: normative, non_normative: non_normative, when_callback: when_callback)
+    desc_content = render_structured_prose(spec_description, when_callback: when_callback)
     content << desc_content if desc_content && !desc_content.empty?
     content << ""
 
     # Process all sections
-    content.concat(render_sections(base_level, normative, non_normative, when_callback))
+    content.concat(render_sections(base_level, when_callback))
 
     # Add references section if present
     content.concat(render_references(base_level)) unless references.empty?
@@ -198,20 +192,18 @@ class NonIsaSpecification
   sig do
     params(
       base_level: Integer,
-      normative: T::Boolean,
-      non_normative: T::Boolean,
       when_callback: T.nilable(T.proc.params(arg0: T.untyped, arg1: T.untyped).returns(T::Boolean))
     ).returns(T::Array[String])
   end
   # Render all sections, adjusting heading levels and filtering by callback.
-  def render_sections(base_level, normative, non_normative, when_callback)
+  def render_sections(base_level, when_callback)
     content = []
     sections.each do |section|
       next unless should_include_section?(section, when_callback)
       level = section['level'] || (base_level + 1)
       content << "#{'=' * level} #{section['title']}"
       content << ""
-      section_content = render_structured_prose(section['content'], normative: normative, non_normative: non_normative, when_callback: when_callback)
+      section_content = render_structured_prose(section['content'], when_callback: when_callback)
       content << section_content if section_content && !section_content.empty?
       content << ""
     end
@@ -236,13 +228,11 @@ class NonIsaSpecification
   sig do
     params(
       prose_content: T.untyped,
-      normative: T::Boolean,
-      non_normative: T::Boolean,
       when_callback: T.nilable(T.proc.params(arg0: T.untyped, arg1: T.untyped).returns(T::Boolean))
     ).returns(T.nilable(String))
   end
-  # Render an array of prose statements as AsciiDoc, filtering by normative and conditional status.
-  def render_structured_prose(prose_content, normative: true, non_normative: true, when_callback: nil)
+  # Render an array of prose statements as AsciiDoc.
+  def render_structured_prose(prose_content, when_callback: nil)
     return nil if prose_content.nil?
 
     # Handle simple string (Asciidoc source)
