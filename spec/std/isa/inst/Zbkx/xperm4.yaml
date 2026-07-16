@@ -35,7 +35,7 @@ operation(): |
   XReg input2 = X[xs2];
   XReg output = 0;
 
-  for(U32 i=0; i<(xlen()-4); i = i+4) {
+  for(U32 i=0; i < xlen(); i = i+4) {
     XReg index = input2[i+3:i];
     if(4*index < xlen()) {
       output[i+3:i] = input1[4*index+3:4*index];
@@ -43,22 +43,3 @@ operation(): |
   }
 
   X[xd] = output;
-
-# SPDX-SnippetBegin
-# SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>
-# SPDX-License-Identifier: BSD-2-Clause
-sail(): |
-  val xperm4_lookup : (bits(4), xlenbits) -> bits(4)
-  function xperm4_lookup (idx, lut) = {
-    (lut >> (idx @ 0b00))[3..0]
-  }
-  function clause execute ( XPERM_4 (rs2,rs1,rd)) = {
-    result : xlenbits = EXTZ(0b0);
-    foreach(i from 0 to xlen by 4) {
-      result[i+3..i] = xperm4_lookup(X(rs2)[i+3..i], X(rs1));
-    };
-    X(rd) = result;
-    RETIRE_SUCCESS
-  }
-
-# SPDX-SnippetEnd

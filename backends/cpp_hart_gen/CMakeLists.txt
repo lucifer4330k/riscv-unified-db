@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.20)
-cmake_policy(SET CMP0067 NEW) # Force check_cxx_source_compiles to respect CMAKE_CXX_STANDARD
 
 include(ExternalProject)
 
@@ -34,28 +33,43 @@ IF(NOT CMAKE_BUILD_TYPE)
 ENDIF(NOT CMAKE_BUILD_TYPE)
 message("* Current build type is : ${CMAKE_BUILD_TYPE}")
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -no-pie)
 
-include(CheckCXXSourceCompiles)
-
-check_cxx_source_compiles(
-  "
-  #include <version>
-  #if !defined(__cpp_concepts) || (__cpp_concepts < 201907)
-  #error \"No concepts\"
-  #endif
-  int main(void) { return 0; }
-  "
-  HAVE_CONCEPTS
-)
-if (NOT HAVE_CONCEPTS)
-  message(FATAL_ERROR "Compiler (${CMAKE_CXX_COMPILER}) does not support concepts")
+# Only track dependencies within the project tree by default. Filters out
+# compiler-internal headers (e.g. /opt/rh/gcc-toolset-14/...) that exist only
+# inside the build container and would otherwise cause spurious full rebuilds
+# on every invocation. Allow callers/CI to override this with
+# -DCMAKE_DEPENDS_IN_PROJECT_ONLY=OFF when they need rebuilds to react to
+# non-project header or toolchain changes.
+if(NOT DEFINED CMAKE_DEPENDS_IN_PROJECT_ONLY)
+  set(CMAKE_DEPENDS_IN_PROJECT_ONLY ON)
 endif()
 
+if(NOT DEFINED UDB_ROOT OR UDB_ROOT STREQUAL "")
+  get_filename_component(UDB_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+endif()
+
+set(UDB_CHECK_CXX_CMAKE "${UDB_ROOT}/.toolchain/check_cxx.cmake")
+if(NOT EXISTS "${UDB_CHECK_CXX_CMAKE}")
+  message(FATAL_ERROR
+    "Unable to locate '${UDB_CHECK_CXX_CMAKE}'. "
+    "Set UDB_ROOT to the repository root or configure from the expected source tree.")
+endif()
+# Check C++ compiler requirements (C++23 + concepts) — single source of truth in check_cxx.cmake
+include(${UDB_ROOT}/.toolchain/check_cxx.cmake)
+
 include(FetchContent)
+
+# Skip network update checks for already-fetched dependencies by default.
+# Without this, CMake re-contacts each upstream repo on every configure,
+# which fails in network-restricted build environments and adds unnecessary
+# latency elsewhere. Allow callers/CI to override this with
+# -DFETCHCONTENT_UPDATES_DISCONNECTED=OFF when update checks are desired.
+if(NOT DEFINED FETCHCONTENT_UPDATES_DISCONNECTED)
+  set(FETCHCONTENT_UPDATES_DISCONNECTED ON
+      CACHE BOOL "Skip FetchContent update checks for already-fetched dependencies.")
+endif()
 
 FetchContent_Declare(fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
@@ -66,7 +80,7 @@ FetchContent_MakeAvailable(fmt)
 FetchContent_Declare(
   yaml-cpp
   GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG yaml-cpp-0.7.0
+  GIT_TAG yaml-cpp-0.9.0
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
@@ -74,7 +88,7 @@ FetchContent_Declare(
     cli11_proj
     QUIET
     GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-    GIT_TAG f4d0731
+    GIT_TAG v2.6.2
 )
 
 FetchContent_MakeAvailable(cli11_proj)
@@ -82,7 +96,7 @@ FetchContent_MakeAvailable(cli11_proj)
 FetchContent_Declare(
   Catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.7.1
+  GIT_TAG        v3.15.2
 )
 
 FetchContent_MakeAvailable(Catch2)
@@ -90,7 +104,7 @@ FetchContent_MakeAvailable(Catch2)
 FetchContent_Declare(
   nlohmann_json_schema_validator
   GIT_REPOSITORY https://github.com/pboettch/json-schema-validator.git
-  GIT_TAG        2.3.0
+  GIT_TAG        2.4.0
 )
 
 FetchContent_MakeAvailable(nlohmann_json_schema_validator)
@@ -98,9 +112,42 @@ FetchContent_MakeAvailable(nlohmann_json_schema_validator)
 FetchContent_Declare(
   compile_time_regular_expressions
   GIT_REPOSITORY https://github.com/hanickadot/compile-time-regular-expressions.git
-  GIT_TAG        v3.9.0
+  GIT_TAG        v3.11.0
 )
 FetchContent_MakeAvailable(compile_time_regular_expressions)
+
+# -----------------------------------------------------------------------
+# libelf — built from elfutils source; no system package required
+# -----------------------------------------------------------------------
+ExternalProject_Add(elfutils_libelf
+  URL      https://sourceware.org/elfutils/ftp/0.195/elfutils-0.195.tar.bz2
+  URL_HASH SHA256=37629fdf7f1f3dc2818e138fca2b8094177d6c2d0f701d3bb650a561218dc026
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND   ${UDB_ROOT}/.toolchain/.build-elfutils.sh
+                    <SOURCE_DIR> <BINARY_DIR> <INSTALL_DIR>
+  INSTALL_COMMAND ""
+)
+
+ExternalProject_Get_Property(elfutils_libelf INSTALL_DIR BINARY_DIR)
+
+# cmake validates INTERFACE_INCLUDE_DIRECTORIES at configure time, but ExternalProject
+# only creates them at build time — pre-create so the check passes.
+file(MAKE_DIRECTORY "${INSTALL_DIR}/include")
+
+# libeu is elfutils' internal utility library; not installed, but libelf.a needs it at link time.
+add_library(libeu_static STATIC IMPORTED)
+set_target_properties(libeu_static PROPERTIES
+  IMPORTED_LOCATION "${BINARY_DIR}/lib/libeu.a"
+)
+add_dependencies(libeu_static elfutils_libelf)
+
+add_library(libelf_static STATIC IMPORTED)
+set_target_properties(libelf_static PROPERTIES
+  IMPORTED_LOCATION             "${INSTALL_DIR}/lib/libelf.a"
+  INTERFACE_INCLUDE_DIRECTORIES "${INSTALL_DIR}/include"
+  INTERFACE_LINK_LIBRARIES      "libeu_static;-lz"
+)
+add_dependencies(libelf_static elfutils_libelf)
 
 
 add_library(hart
@@ -133,11 +180,16 @@ target_link_libraries(hart_renode PUBLIC hart)
 add_executable(iss
   ${CMAKE_SOURCE_DIR}/src/iss.cpp
   ${CMAKE_SOURCE_DIR}/src/elf_reader.cpp
+  ${CMAKE_SOURCE_DIR}/src/GDBServer.cpp
+  ${CMAKE_SOURCE_DIR}/src/NotificationHandler.cpp
+  ${CMAKE_SOURCE_DIR}/src/Tracer.cpp
+  ${CMAKE_SOURCE_DIR}/src/htif.cpp
 )
 if(IGNOREUNDEFINED STREQUAL "YES")
 target_compile_definitions(iss PUBLIC IGNOREUNDEFINED)
 endif()
-target_link_libraries(iss PRIVATE hart elf CLI11::CLI11)
+target_link_libraries(iss PRIVATE hart libelf_static CLI11::CLI11)
+add_dependencies(iss elfutils_libelf)
 
 
 ## TESTS
@@ -183,6 +235,13 @@ add_executable(test_version
 target_include_directories(test_version PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(test_version PRIVATE hart Catch2::Catch2WithMain)
 
+add_executable(test_regfile
+  ${CMAKE_SOURCE_DIR}/test/test_regfile.cpp
+  ${CMAKE_SOURCE_DIR}/src/NotificationHandler.cpp
+)
+target_include_directories(test_regfile PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_regfile PRIVATE hart Catch2::Catch2WithMain)
+
 # add_executable(test_decode
 #   ${CMAKE_SOURCE_DIR}/test/test_decode.cpp
 # )
@@ -192,6 +251,7 @@ target_link_libraries(test_version PRIVATE hart Catch2::Catch2WithMain)
 include(CTest)
 include(Catch)
 catch_discover_tests(test_bits_directed)
+catch_discover_tests(test_regfile)
 
 foreach (random_test IN LISTS RANDOM_TESTS)
   catch_discover_tests(${random_test})

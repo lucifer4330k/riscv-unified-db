@@ -34,20 +34,9 @@ operation(): |
   XReg input = X[xs1];
   XReg output = 0;
 
-  for(U32 i=0; i<(xlen()/2-1); i = i+1){
+  for(U32 i=0; i < (xlen()/2); i = i+1){
     output[2*i] = input[i];
     output[2*i+1] = input[i+xlen()/2];
   }
 
   X[xd] = output;
-
-# SPDX-SnippetBegin
-# SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>
-# SPDX-License-Identifier: BSD-2-Clause
-sail(): |
-  foreach (i from 0 to xlen/2-1) {
-    X(rd)[2*i] = X(rs1)[i];
-    X(rd)[2*i+1] = X(rs1)[i+xlen/2];
-  }
-
-# SPDX-SnippetEnd

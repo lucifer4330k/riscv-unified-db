@@ -4,18 +4,30 @@
 # typed: false
 # frozen_string_literal: true
 
+require "stringio"
+
+# this is needed for tty-progressbar to work with minitest
+unless StringIO.method_defined? :ioctl
+  class StringIO
+    def ioctl(*)
+      # :nocov:
+      80
+      # :nocov:
+    end
+  end
+end
+
 require "simplecov"
 require "simplecov-cobertura"
 
 UDB_ROOT = (Pathname.new(__dir__) / "..").realpath
 
-unless SimpleCov.running
+unless SimpleCov.active_session? || ENV["COVERAGE"] == "0"
   SimpleCov.start do
-    enable_coverage :branch
-    add_filter "/test/"
+    enable_coverage :branch, :eval
+    skip "/test/"
     root UDB_ROOT.to_s
     coverage_dir (UDB_ROOT / "coverage").to_s
-    enable_coverage_for_eval
     formatter SimpleCov::Formatter::MultiFormatter.new([
       SimpleCov::Formatter::CoberturaFormatter,
       SimpleCov::Formatter::HTMLFormatter,

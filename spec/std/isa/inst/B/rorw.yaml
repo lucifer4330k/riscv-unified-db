@@ -19,17 +19,15 @@ definedBy:
           - name: Zbb
           - name: Zbkb
 assembly: xd, xs1, xs2
-format:
-  $inherits:
-    - inst_subtype/R/R-x.yaml#/data
-  opcodes:
-    funct7:
-      display_name: RORW
-      value: 0b0110000
-    funct3:
-      display_name: RORW
-      value: 0b101
-    opcode: { $inherits: inst_opcode/OP-32.yaml#/data }
+encoding:
+  match: 0110000----------101-----0111011
+  variables:
+    - name: xs2
+      location: 24-20
+    - name: xs1
+      location: 19-15
+    - name: xd
+      location: 11-7
 access:
   s: always
   u: always
@@ -46,20 +44,3 @@ operation(): |
 
   XReg unextended_result = (X[xs1] >> shamt) | (X[xs1] << (32 - shamt));
   X[xd] = {{32{unextended_result[31]}}, unextended_result};
-
-# SPDX-SnippetBegin
-# SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>
-# SPDX-License-Identifier: BSD-2-Clause
-sail(): |
-  {
-    let rs1_val = (X(rs1))[31..0];
-    let shamt = (X(rs2))[4..0];
-    let result : bits(32) = match op {
-      RISCV_ROLW => rs1_val <<< shamt,
-      RISCV_RORW => rs1_val >>> shamt
-    };
-    X(rd) = sign_extend(result);
-    RETIRE_SUCCESS
-  }
-
-# SPDX-SnippetEnd
