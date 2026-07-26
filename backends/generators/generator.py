@@ -487,9 +487,11 @@ def load_csrs(csr_root, enabled_extensions, include_all=False, target_arch="RV64
 
 
 def load_exception_codes(
-    ext_dir, enabled_extensions=None, include_all=False, resolved_codes_file=None
+    exc_root, enabled_extensions=None, include_all=False, resolved_codes_file=None
 ):
     """Load exception codes from extension YAML files or pre-resolved JSON file.
+
+    exc_root: Path to the exception_code directory containing YAML files with kind: exception_code.
 
     When include_all=True, loads all exception codes from YAML files regardless of
     extension filtering. When include_all=False, uses resolved_codes_file if available
@@ -502,9 +504,8 @@ def load_exception_codes(
     if enabled_extensions is None:
         enabled_extensions = []
 
-    # Determine the exception_code directory
-    # ext_dir may point to extension directory - we need to find exception_code subdir
-    exc_dir = os.path.join(ext_dir, "..", "exception_code") if ext_dir else None
+    # exc_root is passed directly - no derivation needed
+    exc_dir = exc_root if exc_root else None
     # Normalize path
     if exc_dir:
         exc_dir = os.path.normpath(exc_dir)
