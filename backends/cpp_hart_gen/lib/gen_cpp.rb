@@ -644,14 +644,17 @@ module Idl
   end
 
   class AryRangeAccessAst < AstNode
+    def var; @children[2]; end
+    def msb; @children[3]; end
+    def lsb; @children[4]; end
     sig { override.params(symtab: SymbolTable, indent: Integer, indent_spaces: Integer).returns(String) }
     def gen_cpp(symtab, indent = 0, indent_spaces: 2)
       value_result = value_try do
-        return "#{' ' * indent}#{var.gen_cpp(symtab, 0, indent_spaces:)}.template extract<#{msb.value(symtab)}, #{lsb.value(symtab)}>()"
+        return "#{' ' * indent}#{var.gen_cpp(symtab, 0, indent_spaces:)}.template extract<#{lsb.value(symtab)}, #{msb.value(symtab)}>()"
       end
       value_else(value_result) do
         # we don't know the value of something (probably a param), so we need the slow extract
-        return "#{var.gen_cpp(symtab, 0, indent_spaces:)}.extract(#{msb.gen_cpp(symtab, 0, indent_spaces:)}, #{lsb.gen_cpp(symtab, 0, indent_spaces:)})"
+        return "#{var.gen_cpp(symtab, 0, indent_spaces:)}.extract(#{lsb.gen_cpp(symtab, 0, indent_spaces:)}, #{msb.gen_cpp(symtab, 0, indent_spaces:)})"
       end
     end
   end
