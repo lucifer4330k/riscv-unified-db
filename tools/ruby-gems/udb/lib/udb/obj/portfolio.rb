@@ -801,7 +801,6 @@ module Udb
     # @param design [Design] The design
     # @return [Array<ExceptionCode>] Unsorted list of all in-scope exception codes.
     # TODO: See https://github.com/riscv/riscv-unified-db/issues/291
-    # TODO: Still needs work and haven't created in_scope_interrupt_codes yet.
     # TODO: Extensions should provide conditional information ("when" statements?)
     #       that we evaluate here to determine if a particular exception code can
     #       actually be generated in a design.
@@ -825,7 +824,10 @@ module Udb
 
     # @param design [Design] The design
     # @return [Array<InterruptCode>] Unsorted list of all in-scope interrupt codes.
-    # TODO: Actually implement this to use Design. See in_scope_exception_codes() above.
+    # TODO: See https://github.com/riscv/riscv-unified-db/issues/291
+    # TODO: Extensions should provide conditional information ("when" statements?)
+    #       that we evaluate here to determine if a particular interrupt code can
+    #       actually be generated in a design.
     def in_scope_interrupt_codes(design)
       raise ArgumentError, "Require an PortfolioDesign object but got a #{design.class} object" unless design.is_a?(PortfolioDesign)
 
